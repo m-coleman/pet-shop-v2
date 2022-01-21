@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "rootDir": "src",
+        "jsx": "react",
+        "lib": ["es6", "dom"],
+        "esModuleInterop": true,
+        "allowJs": true,
+        "noEmit": true,
+        "noImplicitReturns": true,
+        "noImplicitThis": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strict": true
+    },
+    "exclude": [
+        "node_modules",
+        "build"
+    ]
+}
