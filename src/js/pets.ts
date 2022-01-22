@@ -138,5 +138,4 @@ export const allPets: Pet[] = [
       "breed": "Golden Retriever",
       "location": "Dawn, Wisconsin"
     }
-  ]
-  
+];
