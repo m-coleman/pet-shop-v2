@@ -1,34 +1,83 @@
-import React, {useState} from "react";
+import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
+import { ethers } from "ethers";
 import { Pet } from "./pets";
 import { allPets } from "./pets";
 
 ReactDOM.render(<App/>, document.getElementById("react"));
 
+declare const window: any;
+let provider: ethers.providers.Web3Provider;
+let signer: ethers.providers.JsonRpcSigner;
+let address: string;
+
 function App() {
 
-    const [filterSelf, setFilterSelf] = useState(false);
+    const [walletConnected, setWalletConnected] = useState(false);
 
-    function getNav() {
-        const allPetsActive = !filterSelf ? "active" : "";
-        const myPetsActive = filterSelf ? "active" : "";
-        return (
-            <div className="container">
-                <nav className="navbar fixed-top navbar-light bg-light nav-border">
-                    <div className="btn-group btn-group-toggle">
-                        <label className={`btn btn-secondary ${allPetsActive}`}>
-                            <input type="radio" onClick={()=> setFilterSelf(false)}/> All Pets
-                        </label>
-                        <label className={`btn btn-secondary ${myPetsActive}`}>
-                            <input type="radio" onClick={()=> setFilterSelf(true)}/> My Pets
-                        </label>
-                    </div>
-                    <span className="pet-title">Cryptolord's Pet Shop</span>
-                    <button className="btn btn-outline-danger">🔅 🔆 Connect Wallet</button>
-                </nav>
-            </div>
-        );
+    useEffect(() => {
+        async function setup() {
+            provider = new ethers.providers.Web3Provider(window.ethereum);
+            signer = provider.getSigner();
+            try {
+                address = await signer.getAddress();
+                setWalletConnected(true);
+            } catch (e) {
+                setWalletConnected(false);
+            }
+        }
+        setup();
+    }, []);
+
+    const [filterSelf, setFilterSelf] = useState(false);
+    return (
+        <div>
+            <Nav filterSelf={filterSelf} setFilterSelf={setFilterSelf}
+                walletConnected={walletConnected} setWalletConnected={setWalletConnected}/>
+            <PetCardContainer filterSelf={filterSelf} walletConnected={walletConnected}/>
+        </div>
+    );
+}
+
+function Nav(props: any) {
+
+    async function connectWallet() {
+        await provider.send("eth_requestAccounts", []);
+        setWalletConnected(true);
     }
+
+    function ConnectWalletButton() {
+        return <button className="btn btn-outline-danger" onClick={connectWallet}>🔅 Connect Wallet</button>;
+    }
+
+    function WalletConnectedButton() {
+        return <button className="btn btn-success">🔆 Wallet Connected</button>;
+    }
+
+    const { filterSelf, setFilterSelf, walletConnected, setWalletConnected } = props;
+    const allPetsActive = !filterSelf ? "active" : "";
+    const myPetsActive = filterSelf ? "active" : "";
+    const walletHtml = walletConnected ? <WalletConnectedButton/> : <ConnectWalletButton/>;
+
+    return (
+        <div className="container">
+        <nav className="navbar fixed-top navbar-light bg-light nav-border">
+            <div className="btn-group btn-group-toggle">
+                <label className={`btn btn-secondary ${allPetsActive}`}>
+                    <input type="radio" onClick={()=> setFilterSelf(false)}/> All Pets
+                </label>
+                <label className={`btn btn-secondary ${myPetsActive}`}>
+                    <input type="radio" onClick={()=> setFilterSelf(true)}/> My Pets
+                </label>
+            </div>
+            <span className="pet-title">Cryptolord's Pet Shop</span>
+            {walletHtml}
+        </nav>
+    </div>
+    );
+}
+
+function PetCardContainer(props: any) {
 
     function getPetCards(filterSelf: boolean) {
         return allPets
@@ -36,23 +85,29 @@ function App() {
                 return !filterSelf || p.owner === 'myAddrFromEthers'; // TOOD: figure this out
             })
             .map((p: Pet, i: number) => {
-                return <PetCard pet={p} key={i}/>;
+                return <PetCard pet={p} key={i} walletConnected={walletConnected}/>;
             });
     }
 
+    const { filterSelf, walletConnected } = props;
     return (
-        <div>
-            {getNav()}
-            <div className="container pet-container">
-                <div className="card-deck">
-                    {getPetCards(filterSelf)}
-                </div>
+        <div className="container pet-container">
+            <div className="card-deck">
+                {getPetCards(filterSelf)}
             </div>
         </div>
     );
 }
 
 function PetCard(props: any) {
+    function adopt() {
+
+    }
+
+    function buy() {
+
+    }
+
     const p: Pet = props.pet;
     const owner = p.owner ? p.owner : "Nobody!";
     const priceId = `price-${p.id}`;
@@ -73,11 +128,30 @@ function PetCard(props: any) {
                         </label>
                     </div>
                 </li>
-                <li className="list-group-item text-center">
-                    <button className="btn btn-outline-primary button-width mr-2">Adopt</button>
-                    <button className="btn btn-primary button-width">Buy</button>
-                </li>
+                <PetCardFooter walletConnected={props.walletConnected} adopt={adopt} buy={buy}/>
             </ul>
         </div>
+    );
+}
+
+function PetCardFooter(props: any) {
+    function AdoptBuy() {
+        return (
+            <>
+                <button className="btn btn-outline-primary button-width mr-2" onClick={props.adopt}>Adopt</button>
+                <button className="btn btn-primary button-width" onClick={props.buy}>Buy</button>
+            </>
+        );
+    }
+
+    function CannotAdoptBuy() {
+        return <div>Connect wallet to interact</div>;
+    }
+
+    const footer = props.walletConnected ? <AdoptBuy/> : <CannotAdoptBuy/>;
+    return (
+        <li className="list-group-item text-center">
+            {footer}
+        </li>
     );
 }
