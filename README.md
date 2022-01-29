@@ -8,3 +8,7 @@
     - alternatively in VS Code:
         - `cmd + shift + b`
         - run build task `tsc: watch`
+
+##### Hardhat
+- in another terminal: Run a hardhat network locally (like Ganache) by running `npm run blockchain`
+- in another terminal: Deploy to the network with `npm run deploy`

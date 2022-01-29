@@ -1,4 +1,7 @@
-pragma solidity ^0.5.0;
+//SPDX-License-Identifier: Unlicense
+pragma solidity ^0.8.0;
+
+import "hardhat/console.sol";
 
 contract Adoption {
 
@@ -25,12 +28,12 @@ contract Adoption {
     }
 
     // Give back naughty pet - updated comment
-    function handleReturn(uint petId) public validPet(petId) ownsPet(petId) returns (uint) {
+    function returnPet(uint petId) public validPet(petId) ownsPet(petId) returns (uint) {
         adopters[petId] = address(0); //Set to 0 address
         // return half of the pet cost if the owner bought the pet
         uint price = petIdToPrice[petId];
         if (price > 0) {
-            msg.sender.transfer(price / 2);
+            payable(msg.sender).transfer(price / 2);
         }
 
         emit PetReturned(petId, msg.sender);
@@ -42,7 +45,8 @@ contract Adoption {
         return adopters;
     }
 
-    function handleBuy(uint petId) public payable {
+    function buy(uint petId) public payable {
+        console.log("%s is trying to buy pet %s for %s", msg.sender, petId, msg.value);
         require(msg.value >= 1 ether, "Pets cost at least 1 ETH cheapskate");
         adopt(petId);
         petIdToPrice[petId] = msg.value;

@@ -20,6 +20,11 @@
     height: 200px;
 }
 
+.owner-text {
+    white-space: nowrap;
+    overflow-x: scroll;
+}
+
 .price-input {
     width: 80px !important;
     display: inline !important;

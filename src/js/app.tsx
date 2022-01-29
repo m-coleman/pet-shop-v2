@@ -3,27 +3,45 @@ import ReactDOM from "react-dom";
 import { ethers } from "ethers";
 import { Pet } from "./pets";
 import { allPets } from "./pets";
+import { AdoptionContract } from "./AdoptionContract";
 
 ReactDOM.render(<App/>, document.getElementById("react"));
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const NOBODY = "Nobody!";
 declare const window: any;
 let provider: ethers.providers.Web3Provider;
 let signer: ethers.providers.JsonRpcSigner;
-let address: string;
 
 function App() {
 
-    const [walletConnected, setWalletConnected] = useState(false);
+    const [contract, setContract] = useState<AdoptionContract | null>(null);
+    const [account, setAccount] = useState('');
+
+    function handleAccountsChanged(accountsConnected: Array<string>) {
+        if (accountsConnected.length === 0) {
+            console.log('Accounts disconnected from pet shop');
+            setAccount('');
+            return;
+        }
+
+        console.log(`Accounts connected to pet shop: ${accountsConnected}`);
+        setAccount(accountsConnected[0]);
+    }
 
     useEffect(() => {
         async function setup() {
+            window.ethereum.on('accountsChanged', handleAccountsChanged);
             provider = new ethers.providers.Web3Provider(window.ethereum);
             signer = provider.getSigner();
+            // TODO: prevent 2 renders in this method?
+            setContract(new AdoptionContract(signer));
             try {
-                address = await signer.getAddress();
-                setWalletConnected(true);
+                // check if a wallet is already connected
+                let address = await signer.getAddress();
+                setAccount(address);
             } catch (e) {
-                setWalletConnected(false);
+                setAccount('');
             }
         }
         setup();
@@ -33,8 +51,8 @@ function App() {
     return (
         <div>
             <Nav filterSelf={filterSelf} setFilterSelf={setFilterSelf}
-                walletConnected={walletConnected} setWalletConnected={setWalletConnected}/>
-            <PetCardContainer filterSelf={filterSelf} walletConnected={walletConnected}/>
+                account={account} setAccount={setAccount}/>
+            <PetCardContainer filterSelf={filterSelf} account={account} contract={contract}/>
         </div>
     );
 }
@@ -42,8 +60,9 @@ function App() {
 function Nav(props: any) {
 
     async function connectWallet() {
-        await provider.send("eth_requestAccounts", []);
-        setWalletConnected(true);
+        let accounts = await provider.send("eth_requestAccounts", []);
+        let selectedAccount = accounts.length > 0 ? accounts[0] : '';
+        setAccount(selectedAccount);
     }
 
     function ConnectWalletButton() {
@@ -54,10 +73,10 @@ function Nav(props: any) {
         return <button className="btn btn-success">🔆 Wallet Connected</button>;
     }
 
-    const { filterSelf, setFilterSelf, walletConnected, setWalletConnected } = props;
+    const { filterSelf, setFilterSelf, account, setAccount } = props;
     const allPetsActive = !filterSelf ? "active" : "";
     const myPetsActive = filterSelf ? "active" : "";
-    const walletHtml = walletConnected ? <WalletConnectedButton/> : <ConnectWalletButton/>;
+    const walletHtml = account ? <WalletConnectedButton/> : <ConnectWalletButton/>;
 
     return (
         <div className="container">
@@ -79,37 +98,68 @@ function Nav(props: any) {
 
 function PetCardContainer(props: any) {
 
-    function getPetCards(filterSelf: boolean) {
+    function getPetCards() {
         return allPets
             .filter((p: Pet) => {
-                return !filterSelf || p.owner === 'myAddrFromEthers'; // TOOD: figure this out
+                return !props.filterSelf || p.owner === 'myAddrFromEthers'; // TOOD: figure this out
             })
             .map((p: Pet, i: number) => {
-                return <PetCard pet={p} key={i} walletConnected={walletConnected}/>;
+                return <PetCard pet={p} key={i}
+                    account={props.account} contract={props.contract}/>;
             });
     }
 
-    const { filterSelf, walletConnected } = props;
     return (
         <div className="container pet-container">
             <div className="card-deck">
-                {getPetCards(filterSelf)}
+                {getPetCards()}
             </div>
         </div>
     );
 }
 
 function PetCard(props: any) {
-    function adopt() {
 
+    const [owner, setOwner] = useState(props.pet.owner);
+    async function updateOwner() {
+        if (!contract) {
+            setOwner(NOBODY);
+            return;
+        }
+
+        let currOwner = await contract.getOwner(p.id);
+        currOwner = (currOwner === ZERO_ADDRESS) ? NOBODY : currOwner;
+        setOwner(currOwner);
     }
 
-    function buy() {
+    useEffect(() => {
+        updateOwner();
+    });
 
+    async function adopt(event: Event) {
+        const petId = getPetId(event);
+        await contract.adopt(petId);
+    }
+
+    async function buy(event: Event) {
+        const petId = getPetId(event);
+        const price = getPrice(event);
+        await contract.buy(petId, price);
+    }
+
+    function getPetId(event: Event) {
+        const target = event.target as HTMLButtonElement;
+        const petIdStr = target.getAttribute('data-pet-id') || '';
+        return parseInt(petIdStr);
+    }
+
+    function getPrice(event: Event): number {
+        const petPriceInput = document.getElementById(`price-${getPetId(event)}`) as HTMLInputElement;
+        return parseFloat(petPriceInput.value);
     }
 
     const p: Pet = props.pet;
-    const owner = p.owner ? p.owner : "Nobody!";
+    const contract: AdoptionContract = props.contract;
     const priceId = `price-${p.id}`;
     return (
         <div className="card pet-card mb-3">
@@ -120,7 +170,7 @@ function PetCard(props: any) {
             <ul className="list-group list-group-flush">
                 <li className="list-group-item">
                     <div className="card-text"><strong>Age:</strong> {p.age}</div>
-                    <div className="card-text"><strong>Owner:</strong> {owner}</div>
+                    <div className="card-text owner-text"><strong>Owner:</strong> {owner}</div>
                     <div className="card-text">
                         <label htmlFor={priceId}>
                             <strong>Price (ETH):</strong>
@@ -128,7 +178,7 @@ function PetCard(props: any) {
                         </label>
                     </div>
                 </li>
-                <PetCardFooter walletConnected={props.walletConnected} adopt={adopt} buy={buy}/>
+                <PetCardFooter account={props.account} petId={p.id} adopt={adopt} buy={buy}/>
             </ul>
         </div>
     );
@@ -138,8 +188,8 @@ function PetCardFooter(props: any) {
     function AdoptBuy() {
         return (
             <>
-                <button className="btn btn-outline-primary button-width mr-2" onClick={props.adopt}>Adopt</button>
-                <button className="btn btn-primary button-width" onClick={props.buy}>Buy</button>
+                <button className="btn btn-outline-primary button-width mr-2" data-pet-id={props.petId} onClick={props.adopt}>Adopt</button>
+                <button className="btn btn-primary button-width" data-pet-id={props.petId} onClick={props.buy}>Buy</button>
             </>
         );
     }
@@ -148,7 +198,7 @@ function PetCardFooter(props: any) {
         return <div>Connect wallet to interact</div>;
     }
 
-    const footer = props.walletConnected ? <AdoptBuy/> : <CannotAdoptBuy/>;
+    const footer = props.account ? <AdoptBuy/> : <CannotAdoptBuy/>;
     return (
         <li className="list-group-item text-center">
             {footer}
